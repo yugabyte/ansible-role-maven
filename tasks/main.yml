@@ -24,8 +24,11 @@
     mode: 'u=rwx,go=rx'
     dest: '{{ maven_download_dir }}'
 
-- block:
-    - name: Download Maven (Mac)
+- name: Download and verify Maven (Mac)
+  when: ansible_os_family == 'Darwin'
+  block:
+    # get_url fails on macOS as CPython/OpenSSL rejects the TLS handshake.
+    - name: Download Maven (Mac)  # noqa: command-instead-of-module
       ansible.builtin.command: curl -sSfL -o '{{ maven_download_dir }}/{{ maven_redis_filename }}' '{{ maven_mirror }}/{{ maven_redis_filename }}'
       args:
         creates: '{{ maven_download_dir }}/{{ maven_redis_filename }}'
@@ -40,9 +43,10 @@
       ansible.builtin.assert:
         that: "maven_download_stat.stat.checksum == maven_redis_sha256sum"
         fail_msg: "Checksum mismatch for Maven tarball!"
-  when: ansible_os_family == 'Darwin'
 
-- block:
+- name: Download and verify Maven (Linux)
+  when: ansible_os_family != 'Darwin'
+  block:
     - name: Download Maven (Linux)
       ansible.builtin.get_url:
         url: '{{ maven_mirror }}/{{ maven_redis_filename }}'
@@ -53,7 +57,6 @@
         validate_certs: '{{ maven_validate_certs }}'
         timeout: '{{ maven_download_timeout }}'
         mode: 'u=rw,go=r'
-  when: ansible_os_family != 'Darwin'
 
 - name: Create Maven installation directory
   become: true
