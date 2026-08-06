@@ -24,16 +24,36 @@
     mode: 'u=rwx,go=rx'
     dest: '{{ maven_download_dir }}'
 
-- name: Download Maven
-  ansible.builtin.get_url:
-    url: '{{ maven_mirror }}/{{ maven_redis_filename }}'
-    dest: '{{ maven_download_dir }}/{{ maven_redis_filename }}'
-    checksum: 'sha256:{{ maven_redis_sha256sum }}'
-    force: false
-    use_proxy: '{{ maven_use_proxy }}'
-    validate_certs: '{{ maven_validate_certs }}'
-    timeout: '{{ maven_download_timeout }}'
-    mode: 'u=rw,go=r'
+- block:
+  - name: Download Maven (Mac)
+    ansible.builtin.command: curl -sSfL -o '{{ maven_download_dir }}/{{ maven_redis_filename }}' '{{ maven_mirror }}/{{ maven_redis_filename }}'
+    args:
+      creates: '{{ maven_download_dir }}/{{ maven_redis_filename }}'
+
+  - name: Verify Maven sha256 checksum (Mac)
+    ansible.builtin.stat:
+      path: '{{ maven_download_dir }}/{{ maven_redis_filename }}'
+      checksum_algorithm: sha256
+    register: maven_download_stat
+
+  - name: Assert Maven checksum (Mac)
+    ansible.builtin.assert:
+      that: "maven_download_stat.stat.checksum == maven_redis_sha256sum"
+      fail_msg: "Checksum mismatch for Maven tarball!"
+  when: ansible_os_family == 'Darwin'
+
+- block:
+  - name: Download Maven (Linux)
+    ansible.builtin.get_url:
+      url: '{{ maven_mirror }}/{{ maven_redis_filename }}'
+      dest: '{{ maven_download_dir }}/{{ maven_redis_filename }}'
+      checksum: 'sha256:{{ maven_redis_sha256sum }}'
+      force: false
+      use_proxy: '{{ maven_use_proxy }}'
+      validate_certs: '{{ maven_validate_certs }}'
+      timeout: '{{ maven_download_timeout }}'
+      mode: 'u=rw,go=r'
+  when: ansible_os_family != 'Darwin'
 
 - name: Create Maven installation directory
   become: true
